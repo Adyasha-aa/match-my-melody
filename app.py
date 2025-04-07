@@ -3,6 +3,45 @@ import pandas as pd
 import numpy as np
 from sklearn.preprocessing import StandardScaler
 from sklearn.neighbors import NearestNeighbors
+from streamlit_lottie import st_lottie
+import json
+import os
+
+# Set page config FIRST
+st.set_page_config(page_title="🎵 MatchMyMelody", page_icon="🎶", layout="wide")
+
+# Optional Styling
+st.markdown("""
+    <style>
+    input {
+        border-radius: 10px;
+        padding: 10px;
+    }
+    button[kind="primary"] {
+        background-color: #6a0dad;
+        color: white;
+        border-radius: 8px;
+        padding: 0.5em 1.5em;
+        font-weight: bold;
+    }
+    </style>
+""", unsafe_allow_html=True)
+
+# Load Lottie animation from JSON file
+def load_lottiefile(filepath: str):
+    if os.path.exists(filepath):
+        with open(filepath, "r") as f:
+            return json.load(f)
+    else:
+        st.warning(f"⚠️ Animation file '{filepath}' not found.")
+        return None
+
+# Title and animation
+st.markdown("<h1 style='text-align: center; color: #6a0dad;'>🎵 MatchMyMelody</h1>", unsafe_allow_html=True)
+st.markdown("<p style='text-align: center;'>Discover Hindi songs with a similar vibe 🎶</p>", unsafe_allow_html=True)
+animation = load_lottiefile("music-animation.json")
+if animation:
+    st_lottie(animation, height=240)
 
 # Load dataset
 df = pd.read_csv("Hindi_songs.csv")
@@ -18,26 +57,15 @@ def convert_to_seconds(time_str):
 
 df['duration'] = df['duration'].apply(convert_to_seconds)
 
-# Select features
+# Select features and scale
 features = ['duration', 'danceability', 'acousticness', 'energy', 'liveness', 'Valence']
 df_features = df[features]
-
-# Standardize features
 scaler = StandardScaler()
 df_scaled = scaler.fit_transform(df_features)
-
 
 # Fit k-NN model
 knn = NearestNeighbors(n_neighbors=11, metric='cosine')
 knn.fit(df_scaled)
-
-# Streamlit config
-st.set_page_config(page_title="🎵 MatchMyMelody", page_icon="🎶", layout="centered")
-st.markdown("<h1 style='text-align: center; color: #6a0dad;'>🎵 MatchMyMelody</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center;'>Discover songs with a similar vibe 🎶</p>", unsafe_allow_html=True)
-
-# Input from user
-song_name = st.text_input("🔍 Enter a song name:")
 
 # Helper functions
 def find_index_by_song_name(song_name):
@@ -59,11 +87,27 @@ def recommend_songs(index, n_recommendations=5):
         })
     return pd.DataFrame(recs)
 
-# Recommendation trigger
-if st.button("✨ Recommend"):
+# Input Section with Dropdown and Styled Form
+st.markdown("---")
+st.markdown("<h3 style='text-align: center;'>🔍 Enter or Select a Hindi Song You Like</h3>", unsafe_allow_html=True)
+
+song_list = sorted(df['song_name'].dropna().unique())
+default_index = song_list.index("Tum Hi Ho") if "Tum Hi Ho" in song_list else 0
+
+with st.form("recommendation_form", clear_on_submit=False):
+    song_name = st.selectbox(
+        "", song_list, index=default_index, label_visibility="collapsed"
+    )
+    submitted = st.form_submit_button("✨ Recommend Similar Songs")
+
+# Trigger Recommendation
+if song_name and submitted:
     index = find_index_by_song_name(song_name)
     if index is not None:
-        st.success(f"Similar songs to '{song_name.title()}':")
-        st.dataframe(recommend_songs(index))
+        st.success(f"✅ Songs similar to: {song_name.title()}")
+        st.dataframe(recommend_songs(index), use_container_width=True)
     else:
-        st.error("Song not found. Try another name.")
+        st.error("❌ Song not found in dataset. Try another name.")
+
+st.markdown("---")
+st.caption("🎧 Enjoy your personalized melody match!")
